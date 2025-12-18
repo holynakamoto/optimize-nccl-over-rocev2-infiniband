@@ -1,18 +1,10 @@
 #!/bin/bash
 # Mock RDMA environment setup
-# This creates the appearance of RDMA-capable hardware for testing
-
-set -e
+# Creates reference files simulating RDMA hardware
 
 echo "Setting up mock RDMA environment..."
 
-# Create mock sysfs entries for RDMA devices
-mkdir -p /sys/class/infiniband/mlx5_0
-mkdir -p /sys/class/infiniband/mlx5_1
-mkdir -p /sys/class/net/eth0
-mkdir -p /sys/class/net/ib0
-
-# Create device info files
+# Create device info files in /tmp
 cat > /tmp/rdma_device_info.txt << 'EOF'
 hca_id: mlx5_0
 transport: InfiniBand (0)
@@ -44,8 +36,6 @@ eth0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 4096
         inet 192.168.1.1  netmask 255.255.255.0  broadcast 192.168.1.255
         inet6 fe80::5265:f0ff:fe00:1234  prefixlen 64  scopeid 0x20<link>
         ether 50:65:f0:00:12:34  txqueuelen 1000  (Ethernet)
-        RX packets 0  bytes 0 (0.0 B)
-        TX packets 0  bytes 0 (0.0 B)
 
 ib0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 2048
         inet 192.168.2.1  netmask 255.255.255.0  broadcast 192.168.2.255
@@ -70,3 +60,4 @@ EOF
 
 echo "Mock RDMA environment ready"
 echo "Available devices: mlx5_0 (RoCEv2 on eth0), mlx5_1 (InfiniBand on ib0)"
+echo "Reference files created in /tmp/"
