@@ -42,6 +42,28 @@ This mirrors real-world deployments like **xAI's Colossus supercluster** (200k+ 
 ✅ Comprehensive report analyzing PFC vs ECN trade-offs (≥800 chars)  
 ✅ No TCP fallback in NCCL logs  
 
+## Important: Simulated Environment
+
+**This task uses a simulated RDMA environment** because:
+- Multi-GPU hardware is expensive and not available in standard CI/CD
+- Terminal-Bench 2.0 focuses on **knowledge and reasoning**, not execution
+- Tests validate correct NCCL configuration understanding
+
+**For real deployment**:
+- Harbor could mount actual GPU nodes with RDMA hardware
+- PyTorch would execute real distributed training
+- NCCL would perform actual RDMA operations
+- Tests would verify real network traffic and GPU communication
+
+**What this tests**:
+✅ Understanding of NCCL environment variables  
+✅ Knowledge of PFC vs ECN trade-offs  
+✅ Ability to reason about congestion control  
+✅ Analysis and documentation skills  
+❌ Actual GPU/RDMA execution (simulated)
+
+The simulated results are based on real-world data from xAI Colossus, NVIDIA benchmarks, and academic papers.
+
 ## Why This Task Matters
 
 ### Real-World Relevance
