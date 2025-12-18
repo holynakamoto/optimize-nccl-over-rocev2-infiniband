@@ -89,7 +89,7 @@ def test_pfc_mode_if_present():
             print(f"    Warning: PFC speedup {speedup:.2f}x below 2.5x target")
         
         if pfc_time <= 0.060 and speedup >= 2.5:
-            print(f"  ✓ PFC mode meets targets")
+            print("  ✓ PFC mode meets targets")
             
     except (ValueError, FileNotFoundError) as e:
         print(f"  Warning: PFC file invalid: {e}")
@@ -117,7 +117,7 @@ def test_ecn_mode_if_present():
             print(f"    Warning: ECN speedup {speedup:.2f}x below 3.0x target")
             
         if ecn_time <= 0.050 and speedup >= 3.0:
-            print(f"  ✓ ECN mode meets targets")
+            print("  ✓ ECN mode meets targets")
             
     except (ValueError, FileNotFoundError) as e:
         print(f"  Warning: ECN file invalid: {e}")
@@ -145,7 +145,7 @@ def test_hybrid_mode_if_present():
             print(f"    Warning: Hybrid speedup {speedup:.2f}x below 3.3x target")
             
         if hybrid_time <= 0.045 and speedup >= 3.3:
-            print(f"  ✓ Hybrid mode meets targets")
+            print("  ✓ Hybrid mode meets targets")
             
     except (ValueError, FileNotFoundError) as e:
         print(f"  Warning: Hybrid file invalid: {e}")
@@ -165,7 +165,7 @@ def test_infiniband_baseline_if_present():
         speedup = baseline_time / ib_time
         
         print(f"  InfiniBand: {ib_time*1000:.1f} ms ({speedup:.2f}x)")
-        print(f"  ✓ IB baseline established")
+        print("  ✓ IB baseline established")
         
     except (ValueError, FileNotFoundError) as e:
         print(f"  Warning: IB file invalid: {e}")
