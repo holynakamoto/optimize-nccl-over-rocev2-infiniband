@@ -14,53 +14,11 @@ RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     python3-dev \
-    ibverbs-utils \
-    rdma-core \
-    libibverbs-dev \
-    librdmacm-dev \
-    libibumad-dev \
-    perftest \
-    net-tools \
-    iproute2 \
-    ethtool \
-    pciutils \
-    numactl \
-    libnuma-dev \
     vim \
     less \
     && rm -rf /var/lib/apt/lists/*
 
-# Install OpenMPI 5.0.x
-RUN cd /tmp && \
-    wget https://download.open-mpi.org/release/open-mpi/v5.0/openmpi-5.0.5.tar.gz && \
-    tar xzf openmpi-5.0.5.tar.gz && \
-    cd openmpi-5.0.5 && \
-    ./configure --prefix=/usr/local/openmpi \
-    --with-cuda=/usr/local/cuda \
-    --with-verbs \
-    --enable-mpirun-prefix-by-default && \
-    make -j$(nproc) && \
-    make install && \
-    cd / && rm -rf /tmp/openmpi-5.0.5*
-
-ENV PATH=/usr/local/openmpi/bin:$PATH
-ENV LD_LIBRARY_PATH=/usr/local/openmpi/lib:$LD_LIBRARY_PATH
-
-# Install NCCL 2.22 (using NVIDIA's package)
-RUN cd /tmp && \
-    wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb && \
-    dpkg -i cuda-keyring_1.1-1_all.deb && \
-    apt-get update && \
-    apt-get install -y libnccl2 libnccl-dev && \
-    rm -f cuda-keyring_1.1-1_all.deb
-
-# Clone and build nccl-tests
-RUN cd /opt && \
-    git clone https://github.com/NVIDIA/nccl-tests.git && \
-    cd nccl-tests && \
-    make MPI=1 MPI_HOME=/usr/local/openmpi CUDA_HOME=/usr/local/cuda
-
-# Install PyTorch with CUDA support
+# Install PyTorch with CUDA support (includes NCCL)
 RUN pip3 install --no-cache-dir \
     torch==2.5.1 \
     torchvision==0.20.1 \

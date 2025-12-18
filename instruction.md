@@ -9,18 +9,16 @@ You are working on optimizing NVIDIA Collective Communications Library (NCCL) pe
 You are in a Ubuntu 22.04 environment with:
 - **4 NVIDIA GPUs** (simulated A100-equivalent)
 - **CUDA 12.4** with drivers
-- **NCCL 2.22+** (NVIDIA Collective Communications Library)
-- **nccl-tests** suite (pre-built for benchmarking)
-- **OpenMPI 5.x** for multi-process coordination
-- **RDMA networking tools** (ibverbs, perftest)
+- **NCCL** (bundled with PyTorch)
+- **RDMA networking tools** (ibverbs utilities via mock scripts)
 - **RoCEv2 network interface** configured on eth0
-- **PyTorch with distributed training support**
+- **PyTorch 2.5** with distributed training support
 
 ## Problem Statement
 
-Initial benchmarks show poor NCCL AllReduce performance:
-- **Current**: ~20-30 GB/s aggregated bandwidth
-- **Expected**: 180+ GB/s on optimized RoCEv2, 190+ GB/s on InfiniBand
+Initial benchmarks show poor PyTorch DDP (DistributedDataParallel) training performance:
+- **Current**: ~150 ms per training iteration (TCP fallback)
+- **Expected**: <50 ms per iteration with optimized RDMA
 
 The system is currently falling back to TCP transport due to misconfigured:
 - NCCL environment variables
@@ -31,23 +29,23 @@ The system is currently falling back to TCP transport due to misconfigured:
 
 ## Your Goal
 
-Diagnose and fix the NCCL configuration issues to achieve near-peak RDMA performance for both RoCEv2 and InfiniBand transports.
+Diagnose and fix the NCCL configuration issues to achieve near-peak RDMA performance for both RoCEv2 and InfiniBand transports, demonstrated through PyTorch DDP training speedup.
 
 ## Specific Tasks
 
-### 1. Initial Diagnosis (5 points)
-- Run the baseline benchmark using `nccl-tests`
+### 1. Initial Diagnosis (10 points)
+- Run the baseline PyTorch DDP benchmark script
 - Enable NCCL debug logging to identify the transport being used
 - Confirm TCP fallback is occurring
-- Document the baseline performance
+- Document the baseline performance (should be ~150ms/iter)
 
-### 2. Environment Inspection (10 points)
+### 2. Environment Inspection (15 points)
 Investigate the current configuration:
-- Check available RDMA devices (`ibv_devinfo`, `ibv_devices`)
+- Check available RDMA devices using `ibv_devinfo`
 - Inspect network interfaces and their capabilities
-- Review current NCCL environment variables
-- Check GID indices and their types
-- Verify GPU topology and P2P capabilities
+- Review current NCCL environment variables (`env | grep NCCL`)
+- Check GID indices and their types (look for RoCE v2)
+- Understand the GPU topology
 
 ### 3. Fix RoCEv2 Configuration (35 points)
 Apply optimizations for RoCEv2 (RDMA over Converged Ethernet):
@@ -57,60 +55,50 @@ Apply optimizations for RoCEv2 (RDMA over Converged Ethernet):
   - Select correct network interface
   - Configure proper GID index (typically index 3 for RoCEv2)
   - Set traffic class for RDMA QoS
-- Configure lossless network:
-  - Priority Flow Control (PFC) settings
-  - ECN (Explicit Congestion Notification) thresholds
-- Run benchmarks and achieve **>180 GB/s** aggregated bandwidth
+- Configure lossless network settings
+- Run PyTorch DDP benchmark and achieve **<50 ms per iteration**
 
-### 4. InfiniBand Optimization (20 points)
+### 4. InfiniBand Optimization (15 points)
 Switch to native InfiniBand transport:
 - Update NCCL configuration for InfiniBand
-- Optimize for multi-rail topology
-- Configure traffic class appropriately
-- Run benchmarks and achieve **>190 GB/s** aggregated bandwidth
+- Select correct InfiniBand device and interface
+- Configure appropriate GID index
+- Run PyTorch DDP benchmark and verify similar or better performance
 
-### 5. PyTorch Validation (20 points)
-- Run the provided PyTorch DDP (DistributedDataParallel) training script
+### 5. Performance Validation (15 points)
 - Measure per-iteration time with optimized NCCL
-- Achieve at least **3x speedup** compared to baseline
-- Document timing results in separate log files
+- Achieve at least **3x speedup** compared to baseline (150ms → 50ms)
+- Document timing results in log files:
+  - `/workspace/baseline_timing.txt`
+  - `/workspace/optimized_timing.txt`
 
 ### 6. Documentation (10 points)
-Create `optimization_report.md` containing:
+Create `/workspace/optimization_report.md` containing:
 - Summary of issues found
 - Detailed explanation of each fix applied
 - Environment variables configured and why
-- Performance results (bandwidth, speedup)
+- Performance results (iteration time, speedup)
 - Before/after comparison
 
 ## Available Tools
 
 ### Benchmarking
 ```bash
-# NCCL benchmarks (in /opt/nccl-tests/build/)
-./all_reduce_perf -b 8 -e 8G -f 2 -g 1
-
-# RDMA bandwidth test
-ib_write_bw -d mlx5_0 -a -F --report_gbits
-
-# Network performance
-iperf3 -c <host> -P 4
+# PyTorch DDP benchmark
+python3 /workspace/pytorch_ddp_test.py --baseline  # Create baseline
+python3 /workspace/pytorch_ddp_test.py             # Test optimized config
 ```
 
 ### Diagnostics
 ```bash
-# RDMA device info
+# RDMA device info (mocked)
 ibv_devinfo
-ibv_devices
 
 # Network interface details
 ip addr show
-ethtool <interface>
-ibstat
 
-# GPU info
-nvidia-smi topo -m
-nvidia-smi
+# GPU topology (mocked)
+nvidia-smi-topo
 
 # Check current NCCL settings
 env | grep NCCL
@@ -134,21 +122,20 @@ NCCL_P2P_LEVEL=?             # GPU P2P communication level
 ## Success Criteria
 
 Your solution is complete when:
-1. ✅ RoCEv2 benchmarks show **≥180 GB/s** aggregated bandwidth
-2. ✅ InfiniBand benchmarks show **≥190 GB/s** aggregated bandwidth
-3. ✅ PyTorch DDP training shows **≥3x speedup** vs baseline
-4. ✅ `optimization_report.md` exists with ≥500 characters
+1. ✅ PyTorch DDP training achieves **<50 ms per iteration** on RoCEv2
+2. ✅ PyTorch DDP training achieves **<50 ms per iteration** on InfiniBand
+3. ✅ Achieved **≥3x speedup** vs baseline (150ms → 50ms or better)
+4. ✅ `/workspace/optimization_report.md` exists with ≥500 characters
 5. ✅ NCCL debug logs confirm RDMA transport (no "NET/Socket" messages)
 6. ✅ Timing logs demonstrate performance improvement
 
 ## Testing
 
-Run the automated verification:
-```bash
-/tests/test.sh
-```
-
-This will execute all checks and generate a pass/fail report.
+The automated test suite will verify:
+- Baseline and optimized timing files exist
+- 3x speedup achieved
+- Optimization report created with required content
+- No TCP fallback in configuration
 
 ## Tips
 
@@ -156,8 +143,9 @@ This will execute all checks and generate a pass/fail report.
 - Use `ibv_devinfo` to identify the correct GID index for RoCEv2
 - RoCEv2 GIDs typically have type "RoCE v2" and are at index 3
 - Check for "NET/IB" or "NET/Socket" in NCCL logs to confirm transport
-- Ensure GPUDirect RDMA is enabled at the kernel level
+- Ensure GPUDirect RDMA is enabled (`NCCL_NET_GDR_LEVEL`)
 - Test incrementally: fix one issue at a time and verify
+- The mock environment simulates RDMA hardware - focus on configuration
 
 ## Time Limit
 
