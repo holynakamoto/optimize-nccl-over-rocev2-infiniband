@@ -1,159 +1,240 @@
-# NCCL Optimization over RoCEv2 and InfiniBand for Multi-GPU Training
+# NCCL Optimization: RoCEv2 (PFC vs ECN) vs InfiniBand
 
 ## Background
 
-You are working on optimizing NVIDIA Collective Communications Library (NCCL) performance for distributed multi-GPU training. The current system has NCCL configured suboptimally, causing it to fall back to slow TCP/IP transport instead of using high-speed RDMA (Remote Direct Memory Access) over RoCEv2 or InfiniBand.
+You are optimizing NVIDIA NCCL for distributed multi-GPU training in a modern AI datacenter. Your challenge: **Can RoCEv2 Ethernet match InfiniBand performance?**
+
+This mirrors real-world deployments like **xAI's Colossus supercluster** (200k+ GPUs) which uses NVIDIA Spectrum-X Ethernet with advanced RoCEv2 congestion control to achieve 95%+ of InfiniBand throughput at massive scale.
 
 ## Environment
 
-You are in a Ubuntu 22.04 environment with:
-- **4 NVIDIA GPUs** (simulated A100-equivalent)
+Ubuntu 22.04 with:
+- **4 NVIDIA GPUs** (simulated A100/H100-equivalent)
 - **CUDA 12.4** with drivers
 - **NCCL** (bundled with PyTorch)
-- **RDMA networking tools** (ibverbs utilities via mock scripts)
-- **RoCEv2 network interface** configured on eth0
-- **PyTorch 2.5** with distributed training support
+- **Configurable RoCEv2 fabric** with PFC, ECN, and hybrid modes
+- **InfiniBand emulation** (baseline reference)
+- **PyTorch 2.5** with distributed training
 
-## Problem Statement
+## The Challenge
 
-Initial benchmarks show poor PyTorch DDP (DistributedDataParallel) training performance:
-- **Current**: ~150 ms per training iteration (TCP fallback)
-- **Expected**: <50 ms per iteration with optimized RDMA
+You'll test **three congestion control strategies** for RoCEv2:
 
-The system is currently falling back to TCP transport due to misconfigured:
-- NCCL environment variables
-- GPUDirect RDMA settings
-- Network interface selection
-- RDMA GID (Global Identifier) indices
-- Traffic class and QoS parameters
+1. **PFC-Only** (Priority Flow Control)
+   - Lossless Ethernet via pause frames
+   - Simple but risks head-of-line blocking
+   
+2. **ECN-Only** (Explicit Congestion Notification with DCQCN)
+   - Rate-based congestion control
+   - Scales better, used by xAI/Azure/Meta
+   
+3. **Hybrid** (PFC + ECN)
+   - ECN for normal operation, PFC as safety net
+   - Industry best practice (Spectrum-X)
 
-## Your Goal
+Compare each against **native InfiniBand** to see which RoCEv2 mode gets closest.
 
-Diagnose and fix the NCCL configuration issues to achieve near-peak RDMA performance for both RoCEv2 and InfiniBand transports, demonstrated through PyTorch DDP training speedup.
+## Current State
 
-## Specific Tasks
+Baseline performance is **poor** (~150ms/iter) due to:
+- TCP fallback (RDMA disabled)
+- Wrong GID index
+- No GPUDirect RDMA
+- Suboptimal congestion control
 
-### 1. Initial Diagnosis (10 points)
-- Run the baseline PyTorch DDP benchmark script
-- Enable NCCL debug logging to identify the transport being used
-- Confirm TCP fallback is occurring
-- Document the baseline performance (should be ~150ms/iter)
+## Your Mission
 
-### 2. Environment Inspection (15 points)
-Investigate the current configuration:
-- Check available RDMA devices using `ibv_devinfo`
-- Inspect network interfaces and their capabilities
-- Review current NCCL environment variables (`env | grep NCCL`)
-- Check GID indices and their types (look for RoCE v2)
-- Understand the GPU topology
+### Step 1: Initial Diagnosis (10 points)
+- Run baseline PyTorch DDP benchmark
+- Confirm TCP fallback with `NCCL_DEBUG=INFO`
+- Document poor performance (~150ms/iter)
 
-### 3. Fix RoCEv2 Configuration (35 points)
-Apply optimizations for RoCEv2 (RDMA over Converged Ethernet):
-- Enable GPUDirect RDMA (GDR)
-- Set correct NCCL environment variables:
-  - Force RDMA transport (disable TCP fallback)
-  - Select correct network interface
-  - Configure proper GID index (typically index 3 for RoCEv2)
-  - Set traffic class for RDMA QoS (typically TC 5 for PFC/ECN)
-- Configure lossless network settings:
-  - Priority Flow Control (PFC) for pause frames
-  - Explicit Congestion Notification (ECN) for congestion management
-- Run PyTorch DDP benchmark and achieve **<50 ms per iteration**
-
-### 4. InfiniBand Optimization (15 points)
-Switch to native InfiniBand transport:
-- Update NCCL configuration for InfiniBand
-- Select correct InfiniBand device and interface
-- Configure appropriate GID index
-- Run PyTorch DDP benchmark and verify similar or better performance
-
-### 5. Performance Validation (15 points)
-- Measure per-iteration time with optimized NCCL
-- Achieve at least **3x speedup** compared to baseline (150ms → 50ms)
-- Document timing results in log files:
-  - `/workspace/baseline_timing.txt`
-  - `/workspace/optimized_timing.txt`
-
-### 6. Documentation (10 points)
-Create `/workspace/optimization_report.md` containing:
-- Summary of issues found
-- Detailed explanation of each fix applied
-- Environment variables configured and why
-- Performance results (iteration time, speedup)
-- Before/after comparison
-
-## Available Tools
-
-### Benchmarking
+### Step 2: Environment Inspection (10 points)
 ```bash
-# PyTorch DDP benchmark
-python3 /workspace/pytorch_ddp_test.py --baseline  # Create baseline
-python3 /workspace/pytorch_ddp_test.py             # Test optimized config
-```
-
-### Diagnostics
-```bash
-# RDMA device info (mocked)
+# Check RDMA devices
 ibv_devinfo
 
-# RoCEv2 network configuration (PFC/ECN settings)
-./show_rocev2_config.sh
-
-# Network interface details
-ip addr show
-
-# GPU topology (mocked)
-nvidia-smi-topo
+# Review congestion control options
+./configure_congestion_control.sh pfc
+./configure_congestion_control.sh ecn
+./configure_congestion_control.sh hybrid
 
 # Check current NCCL settings
 env | grep NCCL
 ```
 
-### Key NCCL Environment Variables
+### Step 3: RoCEv2 with PFC-Only (20 points)
+Configure lossless Ethernet using Priority Flow Control:
 
-You'll need to configure these (among others):
 ```bash
-NCCL_DEBUG=INFO              # Enable detailed logging
-NCCL_IB_DISABLE=0            # Enable InfiniBand/RDMA
+# Set PFC mode
+export ROCE_MODE=pfc
+export NCCL_IB_TC=5              # Traffic class with PFC
+export NCCL_IB_GID_INDEX=3       # RoCE v2 GID
+export NCCL_IB_DISABLE=0         # Enable RDMA
+export NCCL_NET=IB               # Use IB plugin
+export NCCL_SOCKET_IFNAME=eth0   # RoCEv2 interface
+export NCCL_IB_HCA=mlx5_0        # RDMA device
+export NCCL_NET_GDR_LEVEL=5      # GPUDirect RDMA
+```
+
+Run PyTorch DDP test and measure performance.
+
+**Target**: <60ms per iteration (2.5x speedup)
+
+### Step 4: RoCEv2 with ECN-Only (DCQCN) (20 points)
+Configure rate-based congestion control using ECN:
+
+```bash
+# Set ECN mode
+export ROCE_MODE=ecn
+export NCCL_IB_TC=5              # TC 5 required for ECN/DCQCN
+# ... (same RDMA settings as PFC)
+```
+
+**DCQCN Algorithm** automatically handles:
+- Congestion detection via ECN marking
+- Rate reduction (alpha parameter)
+- Smooth rate recovery (additive increase)
+
+Run PyTorch DDP test and compare to PFC mode.
+
+**Target**: <50ms per iteration (3x speedup, better than PFC)
+
+### Step 5: RoCEv2 Hybrid Mode (15 points)
+Test the hybrid PFC+ECN approach:
+
+```bash
+# Set hybrid mode
+export ROCE_MODE=hybrid
+export NCCL_IB_TC=5
+# ... (same RDMA settings)
+```
+
+This combines ECN's efficiency with PFC's safety net.
+
+**Target**: <45ms per iteration (3.3x+ speedup, best RoCEv2 performance)
+
+### Step 6: InfiniBand Baseline (10 points)
+Switch to native InfiniBand for comparison:
+
+```bash
+export NCCL_IB_HCA=mlx5_1        # IB device
+export NCCL_SOCKET_IFNAME=ib0    # IB interface
+export NCCL_IB_GID_INDEX=1       # IB GID
+```
+
+**Target**: <43ms per iteration (3.5x speedup, IB reference)
+
+### Step 7: Analysis & Documentation (15 points)
+Create `/workspace/optimization_report.md` with:
+
+#### Required Analysis:
+1. **PFC vs ECN Trade-offs**:
+   - Which mode performed better and why?
+   - PFC pros/cons (predictability vs head-of-line blocking)
+   - ECN pros/cons (scalability vs tuning complexity)
+   - Hybrid advantages
+
+2. **RoCEv2 vs InfiniBand**:
+   - Did best RoCEv2 mode reach 90%+ of IB performance?
+   - What's the performance gap and why?
+   - When would you choose RoCEv2 over IB?
+
+3. **Configuration Details**:
+   - All NCCL environment variables used
+   - GID index selection rationale
+   - Traffic class configuration
+   - GPUDirect RDMA setup
+
+4. **Performance Results**:
+   - Table comparing all modes (PFC, ECN, Hybrid, IB)
+   - Iteration times and speedup vs baseline
+   - NCCL log evidence of RDMA usage
+
+## Available Tools
+
+### Benchmarking
+```bash
+# Create baseline
+python3 pytorch_ddp_test.py --baseline
+
+# Test optimized config
+python3 pytorch_ddp_test.py
+```
+
+### Diagnostics
+```bash
+# RDMA devices
+ibv_devinfo
+
+# Congestion control modes
+./configure_congestion_control.sh {pfc|ecn|hybrid}
+
+# Network config
+ip addr show
+
+# GPU topology
+nvidia-smi-topo
+
+# NCCL settings
+env | grep NCCL
+```
+
+### Key NCCL Variables
+```bash
+NCCL_DEBUG=INFO              # Detailed logging
+NCCL_IB_DISABLE=0            # Enable RDMA
 NCCL_NET=IB                  # Use IB plugin
-NCCL_IB_GID_INDEX=?          # GID index (need to determine)
-NCCL_IB_TC=?                 # Traffic class
-NCCL_SOCKET_IFNAME=?         # Network interface
-NCCL_NET_GDR_LEVEL=?         # GPUDirect RDMA level
-NCCL_IB_HCA=?                # InfiniBand adapter
-NCCL_P2P_LEVEL=?             # GPU P2P communication level
+NCCL_IB_GID_INDEX=3          # RoCE v2 GID
+NCCL_IB_TC=5                 # Traffic class
+NCCL_SOCKET_IFNAME=eth0      # Network interface
+NCCL_NET_GDR_LEVEL=5         # GPUDirect RDMA
+NCCL_IB_HCA=mlx5_0           # RDMA device
 ```
 
 ## Success Criteria
 
-Your solution is complete when:
-1. ✅ PyTorch DDP training achieves **<50 ms per iteration** on RoCEv2
-2. ✅ PyTorch DDP training achieves **<50 ms per iteration** on InfiniBand
-3. ✅ Achieved **≥3x speedup** vs baseline (150ms → 50ms or better)
-4. ✅ `/workspace/optimization_report.md` exists with ≥500 characters
-5. ✅ NCCL debug logs confirm RDMA transport (no "NET/Socket" messages)
-6. ✅ Timing logs demonstrate performance improvement
+Your solution must achieve:
 
-## Testing
+1. ✅ **PFC Mode**: <60ms/iter (2.5x speedup minimum)
+2. ✅ **ECN Mode**: <50ms/iter (3x speedup minimum)
+3. ✅ **Hybrid Mode**: <45ms/iter (3.3x speedup minimum)
+4. ✅ **InfiniBand**: <43ms/iter (reference)
+5. ✅ **Best RoCEv2 ≥ 90% of IB performance**
+6. ✅ **Report** with PFC vs ECN analysis (≥800 chars)
+7. ✅ **No TCP fallback** in NCCL logs
 
-The automated test suite will verify:
-- Baseline and optimized timing files exist
-- 3x speedup achieved
-- Optimization report created with required content
-- No TCP fallback in configuration
+## Real-World Context
+
+### xAI Colossus Supercluster
+- **200,000+ GPUs** in Memphis datacenter
+- **NVIDIA Spectrum-X Ethernet** with RoCEv2
+- **Hybrid PFC+ECN** (DCQCN algorithm)
+- **95%+ network utilization** (near-IB performance)
+- **Zero packet loss** at massive scale
+- Powers Grok AI training
+
+### Why This Matters
+- InfiniBand doesn't scale to 100k+ GPUs economically
+- RoCEv2 with proper tuning can match IB performance
+- PFC alone doesn't scale (pause storms)
+- ECN/DCQCN is the future for hyperscale AI
+- Wrong configuration = 3x slower training = $$$$ wasted
 
 ## Tips
 
-- Start with enabling NCCL debug logging (`NCCL_DEBUG=INFO`)
-- Use `ibv_devinfo` to identify the correct GID index for RoCEv2
-- RoCEv2 GIDs typically have type "RoCE v2" and are at index 3
-- Check for "NET/IB" or "NET/Socket" in NCCL logs to confirm transport
-- Ensure GPUDirect RDMA is enabled (`NCCL_NET_GDR_LEVEL`)
-- Test incrementally: fix one issue at a time and verify
-- The mock environment simulates RDMA hardware - focus on configuration
+- Start simple: Get basic RDMA working first
+- Use `NCCL_DEBUG=INFO` to verify transport
+- Look for "NET/IB" not "NET/Socket" in logs
+- GID index 3 is typically RoCE v2
+- TC 5 works for all congestion modes
+- ECN mode should outperform PFC mode
+- Hybrid mode should be best overall
+- IB is the gold standard reference
 
 ## Time Limit
 
-You have **15 minutes** to complete this task.
+**20 minutes** to complete all tests and analysis.
 
-Good luck!
+Good luck optimizing for hyperscale! 🚀

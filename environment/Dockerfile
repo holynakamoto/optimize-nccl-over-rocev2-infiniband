@@ -46,11 +46,13 @@ COPY baseline_benchmark.sh /workspace/baseline_benchmark.sh
 COPY pytorch_ddp_test.py /workspace/pytorch_ddp_test.py
 COPY optimization_report_template.md /workspace/optimization_report_template.md
 COPY show_rocev2_config.sh /workspace/show_rocev2_config.sh
+COPY configure_congestion_control.sh /workspace/configure_congestion_control.sh
 COPY mock_ibv_devinfo.sh /usr/local/bin/ibv_devinfo
 COPY mock_nvidia_smi.sh /usr/local/bin/nvidia-smi-topo
 
 RUN chmod +x /workspace/baseline_benchmark.sh && \
     chmod +x /workspace/show_rocev2_config.sh && \
+    chmod +x /workspace/configure_congestion_control.sh && \
     chmod +x /usr/local/bin/ibv_devinfo && \
     chmod +x /usr/local/bin/nvidia-smi-topo
 
