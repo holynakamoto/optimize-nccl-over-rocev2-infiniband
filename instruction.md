@@ -193,6 +193,25 @@ NCCL_NET_GDR_LEVEL=5         # GPUDirect RDMA
 NCCL_IB_HCA=mlx5_0           # RDMA device
 ```
 
+## Required Output Files
+
+Your solution must create these files in `/workspace/`:
+
+1. **`baseline_timing.txt`** - Single float (seconds) for TCP baseline performance
+2. **`optimized_timing.txt`** - Single float (seconds) for best optimized mode
+3. **`optimization_report.md`** - Detailed analysis (≥800 chars) including:
+   - PFC vs ECN vs Hybrid comparison
+   - Performance results table
+   - NCCL configuration used
+   - Analysis of why RoCEv2 can/cannot match InfiniBand
+
+**Optional but recommended** (for full credit):
+- `roce_pfc_timing.txt` - PFC mode timing
+- `roce_ecn_timing.txt` - ECN mode timing  
+- `roce_hybrid_timing.txt` - Hybrid mode timing
+- `ib_timing.txt` - InfiniBand baseline timing
+- `nccl_config.env` - NCCL environment variables used
+
 ## Success Criteria
 
 Your solution must achieve:
@@ -226,12 +245,14 @@ Your solution must achieve:
 
 - Start simple: Get basic RDMA working first
 - Use `NCCL_DEBUG=INFO` to verify transport
-- Look for "NET/IB" not "NET/Socket" in logs
+- **CRITICAL**: Look for "NET/IB" not "NET/Socket" in PyTorch output logs
+- Save PyTorch output to verify NCCL transport: `python3 pytorch_ddp_test.py 2>&1 | tee nccl.log`
 - GID index 3 is typically RoCE v2
 - TC 5 works for all congestion modes
 - ECN mode should outperform PFC mode
 - Hybrid mode should be best overall
 - IB is the gold standard reference
+- **Verify your configuration works** - don't just write timing files!
 
 ## Time Limit
 
