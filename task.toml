@@ -1,0 +1,20 @@
+version = "1.0"
+
+[metadata]
+title = "Optimize NCCL over RoCEv2 and InfiniBand"
+description = "Diagnose and fix NCCL configuration to achieve peak RDMA performance for multi-GPU training"
+difficulty = "hard"
+tags = ["gpu", "nccl", "rdma", "infiniband", "distributed-training", "hpc", "networking"]
+estimated_time_minutes = 15
+
+[verifier]
+timeout_sec = 900.0
+
+[agent]
+timeout_sec = 900.0
+
+[environment]
+build_timeout_sec = 1800.0  # Building CUDA/NCCL takes time
+cpus = 8                     # Multi-GPU simulation benefits from more CPUs
+memory_mb = 16384            # 16GB for CUDA/PyTorch workloads
+storage_mb = 20480           # 20GB for CUDA toolkit and dependencies
