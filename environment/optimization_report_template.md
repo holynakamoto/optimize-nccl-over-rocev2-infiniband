@@ -85,11 +85,15 @@ export NCCL_IB_GID_INDEX=...
 
 **Traffic Class and QoS:**
 ```bash
-export NCCL_IB_TC=...
+export NCCL_IB_TC=5
 ```
+- **Why TC 5?** 
 
 **PFC/ECN Configuration:**
-<!-- Explain any priority flow control or ECN settings -->
+<!-- Explain Priority Flow Control and Explicit Congestion Notification -->
+- **PFC (Priority Flow Control)**: 
+- **ECN (Explicit Congestion Notification)**: 
+- **Why both are needed for RoCEv2**: 
 
 ### InfiniBand Optimization
 

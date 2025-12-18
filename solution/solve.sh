@@ -61,8 +61,8 @@ export NCCL_IB_HCA=mlx5_0
 export NCCL_IB_GID_INDEX=3
 
 # Traffic Class for RDMA QoS
-# TC 106 is commonly used for RoCEv2 with PFC enabled
-export NCCL_IB_TC=106
+# TC 5 is commonly used for RoCEv2 with PFC/ECN enabled
+export NCCL_IB_TC=5
 
 # Enable GPUDirect RDMA
 # Level 5 = full GPUDirect RDMA support
@@ -266,9 +266,9 @@ export NCCL_IB_GID_INDEX=3
 
 **Traffic Class and QoS:**
 ```bash
-export NCCL_IB_TC=106
+export NCCL_IB_TC=5
 ```
-TC 106 is standard for RoCEv2 with Priority Flow Control (PFC) enabled to create lossless Ethernet.
+TC 5 is standard for RoCEv2 with Priority Flow Control (PFC) and Explicit Congestion Notification (ECN) enabled to create lossless Ethernet. This ensures reliable RDMA operation over Ethernet by preventing packet loss.
 
 ### InfiniBand Optimization
 

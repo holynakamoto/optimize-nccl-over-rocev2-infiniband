@@ -54,8 +54,10 @@ Apply optimizations for RoCEv2 (RDMA over Converged Ethernet):
   - Force RDMA transport (disable TCP fallback)
   - Select correct network interface
   - Configure proper GID index (typically index 3 for RoCEv2)
-  - Set traffic class for RDMA QoS
-- Configure lossless network settings
+  - Set traffic class for RDMA QoS (typically TC 5 for PFC/ECN)
+- Configure lossless network settings:
+  - Priority Flow Control (PFC) for pause frames
+  - Explicit Congestion Notification (ECN) for congestion management
 - Run PyTorch DDP benchmark and achieve **<50 ms per iteration**
 
 ### 4. InfiniBand Optimization (15 points)
@@ -93,6 +95,9 @@ python3 /workspace/pytorch_ddp_test.py             # Test optimized config
 ```bash
 # RDMA device info (mocked)
 ibv_devinfo
+
+# RoCEv2 network configuration (PFC/ECN settings)
+./show_rocev2_config.sh
 
 # Network interface details
 ip addr show
