@@ -8,8 +8,6 @@ Validates:
 4. Comprehensive optimization report with mode comparison
 """
 
-import os
-import re
 import sys
 from pathlib import Path
 
