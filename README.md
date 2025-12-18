@@ -1,176 +1,277 @@
-# NCCL Optimization Task for Terminal-Bench 2.0
+# NCCL Optimization: RoCEv2 (PFC vs ECN) vs InfiniBand
 
-This task challenges AI agents to diagnose and optimize NVIDIA NCCL (Collective Communications Library) performance for multi-GPU distributed training over RDMA networks (RoCEv2 and InfiniBand).
+**Terminal-Bench 2.0 Task** | **Difficulty: Hard** | **Time: 20 minutes**
 
-## Task Overview
+## Overview
 
-**Difficulty**: Hard  
-**Estimated Time**: 15 minutes  
-**Domain**: HPC/AI Infrastructure, Distributed Systems, GPU Computing
+This task challenges AI agents to optimize NCCL for distributed GPU training by testing **three different congestion control strategies** for RoCEv2 and comparing against native InfiniBand. Can RoCEv2 Ethernet match InfiniBand performance?
 
-Agents must identify and fix misconfigurations causing NCCL to fall back to slow TCP transport, then optimize for high-performance RDMA transport over both RoCEv2 and InfiniBand.
+This mirrors real-world deployments like **xAI's Colossus supercluster** (200k+ GPUs on NVIDIA Spectrum-X Ethernet), which achieves 95%+ of InfiniBand throughput using advanced RoCEv2 congestion control.
+
+## The Challenge
+
+### Test Three RoCEv2 Congestion Control Modes:
+
+1. **PFC-Only (Priority Flow Control)**
+   - Lossless Ethernet via pause frames
+   - Target: 2.5x speedup (72% of InfiniBand)
+   - Simple but doesn't scale (pause storms)
+
+2. **ECN-Only (DCQCN Algorithm)**
+   - Rate-based congestion control
+   - Target: 3.0x speedup (88% of InfiniBand)
+   - Scales to hyperscale (xAI, Azure, Meta use this)
+
+3. **Hybrid (PFC + ECN)**
+   - ECN primary, PFC backup
+   - Target: 3.3x speedup (95% of InfiniBand)
+   - Industry best practice (Spectrum-X)
+
+### Compare Against:
+
+4. **Native InfiniBand**
+   - Reference baseline
+   - Target: 3.5x speedup (100%)
+   - Gold standard
 
 ## Success Criteria
 
-1. ✅ Achieve ≥180 GB/s bandwidth on RoCEv2
-2. ✅ Achieve ≥190 GB/s bandwidth on InfiniBand
-3. ✅ Achieve ≥3x speedup in PyTorch DDP training
-4. ✅ Create comprehensive optimization report (≥500 chars)
-5. ✅ No TCP fallback in NCCL logs
+✅ Test all three RoCEv2 modes + InfiniBand baseline  
+✅ Achieve ≥3x overall speedup vs TCP baseline  
+✅ **Best RoCEv2 mode ≥90% of InfiniBand performance**  
+✅ Comprehensive report analyzing PFC vs ECN trade-offs (≥800 chars)  
+✅ No TCP fallback in NCCL logs  
 
-## Directory Structure
+## Why This Task Matters
+
+### Real-World Relevance
+
+This task replicates the actual optimization work done by ML Infrastructure Engineers at:
+
+- **xAI (Colossus)**: 200k+ GPUs on RoCEv2 with Hybrid PFC+ECN
+- **Meta**: AI training clusters with ECN/DCQCN
+- **Microsoft Azure**: NDv5 instances with RoCEv2
+- **Google Cloud**: A3 instances with optimized Ethernet
+
+### Key Learning Objectives
+
+1. **Congestion Control Fundamentals**:
+   - PFC pause frames vs ECN rate adaptation
+   - DCQCN algorithm (Data Center Quantized Congestion Notification)
+   - Why PFC alone doesn't scale to 100k+ GPUs
+
+2. **NCCL Configuration**:
+   - GID index selection (RoCE v2 at index 3)
+   - Traffic class mapping (TC 5 for PFC/ECN)
+   - GPUDirect RDMA setup
+
+3. **Performance Analysis**:
+   - Why ECN outperforms PFC at scale
+   - When to choose RoCEv2 vs InfiniBand
+   - Cost/performance trade-offs
+
+4. **Systems Debugging**:
+   - NCCL log interpretation
+   - RDMA device inspection
+   - Multi-variable configuration tuning
+
+## Task Structure
 
 ```
-optimize-nccl-over-RoCEv2-InfiniBand/
-├── task.toml                      # Task configuration
-├── instruction.md                 # Student-facing instructions
-├── README.md                      # This file
+optimize-nccl-over-rocev2-infiniband/
+├── instruction.md                          # Student-facing task description
+├── task.toml                               # Task metadata
+├── README.md                               # This file
 │
-├── environment/                   # Docker environment setup
-│   ├── Dockerfile                 # CUDA, NCCL, OpenMPI, PyTorch
-│   ├── setup_mock_rdma.sh         # Mock RDMA devices
-│   ├── mock_ibv_devinfo.sh        # Mock ibverbs command
-│   ├── mock_nvidia_smi.sh         # Mock GPU topology
-│   ├── baseline_benchmark.sh      # Initial (broken) benchmark
-│   ├── pytorch_ddp_test.py        # PyTorch training test
-│   └── optimization_report_template.md
+├── environment/
+│   ├── Dockerfile                          # CUDA, PyTorch environment
+│   ├── pytorch_ddp_test.py                 # Training benchmark
+│   ├── configure_congestion_control.sh     # PFC/ECN/Hybrid mode config
+│   ├── show_rocev2_config.sh               # Educational PFC/ECN explainer
+│   ├── mock_ibv_devinfo.sh                 # RDMA device simulation
+│   └── ...
 │
 ├── solution/
-│   └── solve.sh                   # Reference solution
+│   └── solve.sh                            # Reference solution (tests all modes)
 │
 └── tests/
-    ├── test.sh                    # Test runner script
-    └── test_outputs.py            # pytest test suite
+    ├── test.sh                             # Test runner
+    └── test_outputs.py                     # Comprehensive test suite
 ```
 
-## Key Learning Objectives
+## Educational Value
 
-1. **NCCL Configuration**: Understanding NCCL environment variables and their impact
-2. **RDMA Fundamentals**: GID indices, traffic classes, GPUDirect RDMA
-3. **Network Optimization**: RoCEv2 vs InfiniBand, lossless Ethernet (PFC/ECN)
-4. **Distributed Training**: How NCCL affects PyTorch DDP performance
-5. **Systems Debugging**: Using logs and diagnostic tools to identify issues
+### PFC vs ECN Trade-Off Analysis
 
-## Technical Challenges
+Students will learn:
 
-### Initial Misconfigurations
-- `NCCL_IB_DISABLE=1` forces TCP fallback
-- `NCCL_SOCKET_IFNAME=lo` uses wrong interface
-- Missing `NCCL_IB_GID_INDEX` configuration
-- GPUDirect RDMA not enabled
+**PFC (Priority Flow Control)**:
+- ✅ Simple, predictable
+- ✅ True lossless (zero packet loss)
+- ❌ Head-of-line blocking
+- ❌ Pause frame storms at scale
+- ❌ Doesn't scale beyond ~10k GPUs
 
-### Required Knowledge
-- NCCL environment variable system
-- RDMA GID types and selection
-- RoCEv2 vs native InfiniBand differences
-- GPUDirect RDMA benefits
-- NCCL debugging and logging
+**ECN (Explicit Congestion Notification)**:
+- ✅ Scales to 100k+ GPUs
+- ✅ Smooth rate adaptation (DCQCN)
+- ✅ Better fabric utilization
+- ❌ More complex tuning
+- ❌ Requires end-to-end support
 
-## Environment Details
+**Hybrid (PFC + ECN)**:
+- ✅ Best of both worlds
+- ✅ 95%+ of IB performance
+- ✅ Used by xAI, Azure, etc.
+- ❌ Most complex to tune
 
-### Simulated Hardware
-- 4x NVIDIA A100-equivalent GPUs
-- 2x Mellanox ConnectX-6 adapters
-  - mlx5_0: RoCEv2 on eth0
-  - mlx5_1: InfiniBand on ib0
+### xAI Colossus Connection
 
-### Software Stack
-- Ubuntu 22.04
-- CUDA 12.4
-- NCCL 2.22+
-- OpenMPI 5.x
-- PyTorch 2.5.1 with CUDA support
-- RDMA tools (ibverbs, perftest)
+The Hybrid mode tested in this task is exactly what **xAI's Colossus** uses:
 
-## Testing Approach
+- **200,000+ NVIDIA GPUs** (Memphis datacenter)
+- **NVIDIA Spectrum-X Ethernet** switches
+- **RoCEv2 with Hybrid PFC+ECN** (DCQCN algorithm)
+- **95%+ network utilization** (our task target: ≥90%)
+- **Zero packet loss** at massive scale
+- Powers **Grok AI** training
 
-The test suite (`tests/test_outputs.py`) validates:
+## Difficulty Calibration
 
-1. **File Artifacts**: Presence of timing logs and report
-2. **Performance Metrics**: Bandwidth and speedup thresholds
-3. **Configuration Quality**: NCCL environment variables
-4. **Transport Verification**: No TCP fallback in logs
-
-## Mock Environment
-
-Since running actual multi-GPU RDMA benchmarks requires expensive hardware, this task uses:
-
-1. **Mock RDMA devices**: Scripts simulate `ibv_devinfo` output
-2. **Simulated benchmarks**: Reference results demonstrate expected performance
-3. **Configuration focus**: Emphasis on knowing correct NCCL settings
-4. **Validation via artifacts**: Tests check for correct configuration files
-
-This approach tests **knowledge and reasoning** about NCCL optimization while remaining hardware-independent.
-
-## Difficulty Justification
-
-**Expected Pass Rate**: 40-60% for frontier AI agents
+**Expected Pass Rate**: 30-50% for frontier AI agents
 
 **Why Hard?**
-1. **Niche Knowledge**: RDMA/NCCL expertise rare in training data
-2. **Multi-Variable Problem**: Many interconnected configuration issues
-3. **Debugging Required**: Must interpret logs and environment state
-4. **Domain-Specific**: HPC/AI infrastructure is specialized
-5. **Easy to Miss Details**: Wrong GID index, traffic class, or interface breaks everything
 
-**Why Solvable by Experts?**
-- All information is in public NVIDIA documentation
-- Standard practices in ML infrastructure engineering
-- Logical debugging process with clear error messages
-- Step-by-step diagnosis possible
+1. **Multi-Mode Testing**: Must test 3 RoCEv2 modes + IB (4 configurations)
+2. **Niche Knowledge**: PFC/ECN/DCQCN details rare in training data
+3. **Complex Analysis**: Must explain PFC vs ECN trade-offs
+4. **Multi-Variable Tuning**: Many interconnected NCCL settings
+5. **Comparative Reasoning**: Must achieve 90% of IB target
+6. **Real-World Constraints**: Mirrors actual hyperscale challenges
 
-## Real-World Relevance
+**Why Solvable?**
 
-This task mirrors actual problems faced by:
-- ML infrastructure engineers at hyperscalers (Meta, Google, Microsoft)
-- HPC cluster administrators
-- AI training platform developers
-- GPU cluster optimization specialists
+- All information in public NVIDIA/xAI documentation
+- Logical debugging process
+- Clear success metrics
+- Step-by-step progression through modes
 
-Skills tested are directly applicable to:
-- Optimizing large-scale model training (LLaMA, GPT-4, etc.)
-- Building ML infrastructure platforms
-- Debugging distributed training performance issues
-- Configuring GPU clusters for AI workloads
+## Performance Expectations
 
-## Extensions & Variations
+| Mode | Iteration Time | Speedup | % of IB | Scalability |
+|------|---------------|---------|---------|-------------|
+| Baseline (TCP) | 150ms | 1.0x | 28% | N/A |
+| RoCEv2 PFC | 58ms | 2.59x | 72% | Small (<10k GPUs) |
+| RoCEv2 ECN | 48ms | 3.13x | 88% | Hyperscale (100k+) |
+| **RoCEv2 Hybrid** | **44ms** | **3.41x** | **95%** ✓ | **Hyperscale (200k+)** |
+| InfiniBand | 42ms | 3.57x | 100% | Medium (<50k) |
 
-Potential task variations for different difficulty levels:
+## Key Technical Concepts
 
-**Easier Version**:
-- Pre-identify which variables are wrong
-- Provide hints about GID index selection
-- Smaller set of issues to fix
+### DCQCN Algorithm (ECN Mode)
 
-**Harder Version**:
-- Add NUMA affinity problems
-- Include PCIe topology issues
-- Multiple network fabrics with complex routing
-- Performance regression debugging
+```
+1. Switch detects queue buildup (buffer > K_min)
+2. Switch marks packet headers with ECN bit
+3. Receiver sends CNP (Congestion Notification Packet)
+4. Sender reduces rate by alpha (e.g., 50%)
+5. Rate increases additively when congestion clears
+6. Smooth, stable convergence
+```
 
-**Related Tasks**:
-- Optimize NCCL for NVSwitch topologies
-- Debug NCCL hangs in large-scale training
-- Configure multi-node NCCL with InfiniBand
-- Optimize all-to-all communication patterns
+### Hybrid Mode Operation
+
+```
+Light congestion:
+  └─> ECN marks packets → DCQCN reduces rate
+
+Moderate congestion:
+  └─> Continued ECN marking → Rate adapts smoothly
+
+Severe congestion (>85% buffer):
+  └─> PFC pause frames → Safety net prevents loss
+```
+
+### Why RoCEv2 Can Match InfiniBand
+
+1. **Modern NICs**: ConnectX-7/8 hardware-accelerate DCQCN
+2. **Optimized switches**: Spectrum-X minimizes ECN latency
+3. **GPUDirect RDMA**: Zero-copy same as InfiniBand
+4. **Tuned thresholds**: Proper ECN settings prevent over-marking
+5. **Economics**: Ethernet scales better than IB at 100k+ GPUs
+
+## Running the Task
+
+### Via Harbor Framework
+
+```bash
+cd optimize-nccl-over-rocev2-infiniband
+harbor run .
+```
+
+### Manual Testing
+
+```bash
+# Build Docker environment
+docker build -t nccl-pfc-ecn-task ./environment
+
+# Run container
+docker run -it --rm nccl-pfc-ecn-task
+
+# Inside container - run solution
+bash /solution/solve.sh
+
+# Run tests
+/tests/test.sh
+```
+
+## Sample Solution Output
+
+```
+[Step 3] RoCEv2 with PFC-Only Mode
+✓ RoCEv2 PFC: 58ms/iter (2.59x speedup)
+
+[Step 4] RoCEv2 with ECN-Only Mode (DCQCN)
+✓ RoCEv2 ECN: 48ms/iter (3.13x speedup)
+
+[Step 5] RoCEv2 Hybrid Mode (PFC + ECN)
+✓ RoCEv2 Hybrid: 44ms/iter (3.41x speedup)
+
+[Step 6] InfiniBand Reference
+✓ InfiniBand: 42ms/iter (3.57x speedup)
+
+✓ Best RoCEv2 reached 95.5% of InfiniBand performance!
+```
 
 ## References
 
-- [NVIDIA NCCL Documentation](https://docs.nvidia.com/deeplearning/nccl/)
-- [NCCL Environment Variables](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html)
-- [RoCEv2 Configuration Best Practices](https://enterprise-support.nvidia.com/s/article/understanding-rocev2-congestion-management)
-- [GPUDirect RDMA Guide](https://docs.nvidia.com/cuda/gpudirect-rdma/)
-- [Meta's OCP Experience with GPU Networks](https://engineering.fb.com/2021/03/31/data-center-engineering/networking-ocp/)
+- [xAI Colossus](https://x.ai/blog/colossus) - 200k GPU cluster architecture
+- [NVIDIA Spectrum-X](https://www.nvidia.com/en-us/networking/products/ethernet/spectrum-x/) - RoCEv2 networking platform
+- [DCQCN Paper](https://conferences.sigcomm.org/sigcomm/2015/pdf/papers/p523.pdf) - Original DCQCN algorithm
+- [NVIDIA NCCL Docs](https://docs.nvidia.com/deeplearning/nccl/) - NCCL environment variables
+- [RoCEv2 Congestion Mgmt](https://enterprise-support.nvidia.com/s/article/understanding-rocev2-congestion-management) - NVIDIA guide
+
+## Task Evolution
+
+**Version 1.0** (Initial): Basic NCCL optimization  
+**Version 1.1** (TC 5 + PFC): Added PFC with TC 5  
+**Version 1.2** (PFC vs ECN): Added ECN and comparison  
+**Version 2.0** (Current): **Full PFC vs ECN vs Hybrid vs IB comparison** (xAI Colossus style)
 
 ## Contributing
 
-To improve this task:
-1. Test with actual NCCL benchmarks if GPU hardware available
-2. Add more realistic network topology scenarios
-3. Include additional diagnostic tools
-4. Expand test coverage for edge cases
-5. Add progressive hints system for educational use
+This task is part of Terminal-Bench 2.0. To suggest improvements:
+
+1. Test with actual multi-GPU hardware
+2. Add more congestion control scenarios
+3. Extend to multi-node configurations
+4. Add NUMA affinity optimization
+5. Create difficulty variants (easy/medium/hard)
 
 ## License
 
-This task is part of Terminal-Bench 2.0 and follows the benchmark's licensing terms.
+Part of Terminal-Bench 2.0 benchmark suite.
+
+---
+
+**Ready to test if AI agents can optimize like xAI's infrastructure team?** 🚀
